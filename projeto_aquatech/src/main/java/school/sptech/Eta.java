@@ -6,8 +6,11 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Eta {
     ArrayList<ArrayList> leituras = new ArrayList<>();
-    String alerta;
 
+    public void limparTela() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
 
     ArrayList simularValores(Integer qtdVezes){
         ArrayList<Integer>  cpuUse = new ArrayList<>();
@@ -51,9 +54,11 @@ public class Eta {
         ArrayList<Integer> leiturasMemoria = leituras.get(2);
 
         for (int i = 0; i < leiturasCPU.size(); i++) {
+            limparTela();
             if (leiturasCPU.get(i) > 80) {
                 qtdAlertasCritico++;
-                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique sua CPU!");
+                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique sua Memória! " +
+                        "\nValor lido CPU: " + leiturasCPU.get(i));
                 break;
             } else if (leiturasCPU.get(i) > 70) {
                 qtdAlertasModerado++;
@@ -63,7 +68,8 @@ public class Eta {
 
             if (leiturasDisco.get(i) > 80) {
                 qtdAlertasCritico++;
-                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique seu Disco!");
+                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique seu Disco! " +
+                        "\nValor lido Disco: " + leiturasDisco.get(i));
                 break;
             } else if (leiturasDisco.get(i) > 60) {
                 qtdAlertasModerado++;
@@ -73,7 +79,8 @@ public class Eta {
 
             if (leiturasMemoria.get(i) > 80) {
                 qtdAlertasCritico++;
-                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique sua Memória!");
+                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique sua Memória! " +
+                        "\nValor lido Memoria: " + leiturasMemoria.get(i));
                 break;
             } else if (leiturasMemoria.get(i) > 60) {
                 qtdAlertasModerado++;
@@ -85,7 +92,7 @@ public class Eta {
         System.out.println("\nO resumo do seu dia foi: \n"
                 + "Quantidade de alertas Normal: " + qtdAlertasNormal + "\n"
                 + "Quantidade de alertas Moderado: " + qtdAlertasModerado + "\n"
-                + "Quantidade de alertas Crítico: " + qtdAlertasCritico);
+                + "Quantidade de alertas Crítico: " + qtdAlertasCritico + "\n");
 
         System.out.println("Valores lidos no dia:\n" +
                 "CPU: "+leituras.get(0)
