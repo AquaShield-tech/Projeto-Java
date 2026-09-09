@@ -4,6 +4,6 @@ public class Main {
     static void main() {
         Eta ETA1 = new Eta();
 
-        ETA1.simularValores(2);
+        ETA1.simularDia();
     }
 }
