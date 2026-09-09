@@ -44,53 +44,47 @@ public class Eta {
         Integer qtdAlertasCritico = 0;
 
         System.out.println("Iniciando as leituras diárias...");
-        System.out.println("Quantas simulações você deseja fazer?");
+        System.out.println("Por quantas horas você deseja monitorar? (Em cada hora irá ser realizado 3 leituras)");
 
-        int quantidade = scan.nextInt();
+        int quantidade = 3 * scan.nextInt();
         simularValores(quantidade);
 
         ArrayList<Integer> leiturasCPU = leituras.get(0);
         ArrayList<Integer> leiturasDisco = leituras.get(1);
         ArrayList<Integer> leiturasMemoria = leituras.get(2);
+        System.out.println("----------MÉTRICAS----------\n" +
+                "COMPONENTE     MODERADO     CRÍTICO\n" +
+                "CPU               >70        >80\n" +
+                "DISCO             >60        >80\n" +
+                "MEMÓRIA           >60        >80\n");
 
         for (int i = 0; i < leiturasCPU.size(); i++) {
-            limparTela();
             if (leiturasCPU.get(i) > 80) {
                 qtdAlertasCritico++;
-                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique sua Memória! " +
-                        "\nValor lido CPU: " + leiturasCPU.get(i));
-                break;
+                System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique sua CPU!" +
+                        "\nValor lido CPU: " + leiturasCPU.get(i) + "\n");
             } else if (leiturasCPU.get(i) > 70) {
                 qtdAlertasModerado++;
-            } else if (leiturasCPU.get(i) > 50) {
-                qtdAlertasNormal++;
             }
 
             if (leiturasDisco.get(i) > 80) {
                 qtdAlertasCritico++;
-                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique seu Disco! " +
-                        "\nValor lido Disco: " + leiturasDisco.get(i));
-                break;
+                System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique seu Disco!" +
+                        "\nValor lido Disco: " + leiturasDisco.get(i) + "\n");
             } else if (leiturasDisco.get(i) > 60) {
                 qtdAlertasModerado++;
-            } else if (leiturasDisco.get(i) > 40) {
-                qtdAlertasNormal++;
             }
 
             if (leiturasMemoria.get(i) > 80) {
                 qtdAlertasCritico++;
-                System.out.println("A EXECUÇÃO FOI PAUSADA DEVIDO A UM ALERTA CRÍTICO!! Verifique sua Memória! " +
-                        "\nValor lido Memoria: " + leiturasMemoria.get(i));
-                break;
+                System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique sua Memória!" +
+                        "\nValor lido Memoria: " + leiturasMemoria.get(i) + "\n");
             } else if (leiturasMemoria.get(i) > 60) {
                 qtdAlertasModerado++;
-            } else if (leiturasMemoria.get(i) > 40) {
-                qtdAlertasNormal++;
             }
         }
 
         System.out.println("\nO resumo do seu dia foi: \n"
-                + "Quantidade de alertas Normal: " + qtdAlertasNormal + "\n"
                 + "Quantidade de alertas Moderado: " + qtdAlertasModerado + "\n"
                 + "Quantidade de alertas Crítico: " + qtdAlertasCritico + "\n");
 
