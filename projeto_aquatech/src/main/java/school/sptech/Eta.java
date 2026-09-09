@@ -54,12 +54,12 @@ public class Eta {
         ArrayList<Integer> leiturasMemoria = leituras.get(2);
         System.out.println("----------MÉTRICAS----------\n" +
                 "COMPONENTE     MODERADO     CRÍTICO\n" +
-                "CPU               >70        >80\n" +
-                "DISCO             >60        >80\n" +
-                "MEMÓRIA           >60        >80\n");
+                "CPU               >70        >99\n" +
+                "DISCO             >50        >99\n" +
+                "MEMÓRIA           >75        >80\n");
 
         for (int i = 0; i < leiturasCPU.size(); i++) {
-            if (leiturasCPU.get(i) > 80) {
+            if (leiturasCPU.get(i) > 99) {
                 qtdAlertasCritico++;
                 System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique sua CPU!" +
                         "\nValor lido CPU: " + leiturasCPU.get(i) + "\n");
@@ -67,19 +67,19 @@ public class Eta {
                 qtdAlertasModerado++;
             }
 
-            if (leiturasDisco.get(i) > 80) {
+            if (leiturasDisco.get(i) > 99) {
                 qtdAlertasCritico++;
                 System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique seu Disco!" +
                         "\nValor lido Disco: " + leiturasDisco.get(i) + "\n");
-            } else if (leiturasDisco.get(i) > 60) {
+            } else if (leiturasDisco.get(i) > 50) {
                 qtdAlertasModerado++;
             }
 
-            if (leiturasMemoria.get(i) > 80) {
+            if (leiturasMemoria.get(i) > 90) {
                 qtdAlertasCritico++;
                 System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique sua Memória!" +
                         "\nValor lido Memoria: " + leiturasMemoria.get(i) + "\n");
-            } else if (leiturasMemoria.get(i) > 60) {
+            } else if (leiturasMemoria.get(i) > 75) {
                 qtdAlertasModerado++;
             }
         }
