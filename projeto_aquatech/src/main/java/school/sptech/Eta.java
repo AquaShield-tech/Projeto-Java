@@ -7,11 +7,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class Eta {
     ArrayList<ArrayList> leituras = new ArrayList<>();
 
-    public void limparTela() {
-        System.out.print("\033[H\033[2J");
-        System.out.flush();
-    }
-
     ArrayList simularValores(Integer qtdVezes){
         ArrayList<Integer>  cpuUse = new ArrayList<>();
         ArrayList<Integer>  discUse = new ArrayList<>();
@@ -39,7 +34,6 @@ public class Eta {
 
     void simularDia(){
         Scanner scan = new Scanner(System.in);
-        Integer qtdAlertasNormal = 0;
         Integer qtdAlertasModerado = 0;
         Integer qtdAlertasCritico = 0;
 

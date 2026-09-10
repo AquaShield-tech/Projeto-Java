@@ -2,8 +2,8 @@ package school.sptech;
 
 public class Main {
     static void main() {
-        Eta ETA1 = new Eta();
+        Eta ETA_Cantareira = new Eta();
 
-        ETA1.simularDia();
+        ETA_Cantareira.simularDia();
     }
 }
