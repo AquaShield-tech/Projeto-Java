@@ -1,93 +1,81 @@
 package school.sptech;
 
-import java.util.ArrayList;
-import java.util.Scanner;
-import java.util.concurrent.ThreadLocalRandom;
+import oshi.SystemInfo;
+import oshi.hardware.NetworkIF;
 
 public class Eta {
-    ArrayList<ArrayList> leituras = new ArrayList<>();
 
-    ArrayList simularValores(Integer qtdVezes){
-        ArrayList<Integer>  cpuUse = new ArrayList<>();
-        ArrayList<Integer>  discUse = new ArrayList<>();
-        ArrayList<Integer>  memoryUse = new ArrayList<>();
+    private Double limiteRecebimento;
+    private Double limiteEnvio;
+    private Double limiteAviso;
+    private Double limiteCritico;
 
-        for (int i = 0; i < qtdVezes; i++) {
-            cpuUse.add(ThreadLocalRandom.current().nextInt(0,101));
-            discUse.add(ThreadLocalRandom.current().nextInt(0,101));
-            memoryUse.add(ThreadLocalRandom.current().nextInt(0,101));
-        }
-        leituras.add(cpuUse);
-        leituras.add(discUse);
-        leituras.add(memoryUse);
-
-        return leituras;
+    public Eta() {
+        this.limiteRecebimento = 80.0;
+        this.limiteEnvio = 80.0;
+        this.limiteAviso = 80.0;
+        this.limiteCritico = 95.0;
     }
 
-    void consultarValores(){
-        System.out.println("Os valores das leituras:\n" +
-                "CPU: "+leituras.get(0)
-                +"\nDisco: "+leituras.get(1)
-                +"\nMemória: "+leituras.get(2)
-        );
+    public Eta(Double limiteRecebimento, Double limiteEnvio, Double limiteAviso, Double limiteCritico) {
+        this.limiteRecebimento = limiteRecebimento;
+        this.limiteEnvio = limiteEnvio;
+        this.limiteAviso = limiteAviso;
+        this.limiteCritico = limiteCritico;
     }
 
-    void simularDia(){
-        Scanner scan = new Scanner(System.in);
-        Integer qtdAlertasModerado = 0;
-        Integer qtdAlertasCritico = 0;
+    public void monitorarRede() {
+        SystemInfo sistema = new SystemInfo();
 
-        System.out.println("Iniciando as leituras diárias...");
-        System.out.println("Por quantas horas você deseja monitorar? (Em cada hora irá ser realizado 3 leituras)");
+        for (NetworkIF rede : sistema.getHardware().getNetworkIFs()) {
+            rede.updateAttributes();
 
-        int quantidade = 3 * scan.nextInt();
-        simularValores(quantidade);
+            Long recebidosAntes = rede.getBytesRecv();
+            Long enviadosAntes = rede.getBytesSent();
+            Long velocidade = rede.getSpeed();
 
-        ArrayList<Integer> leiturasCPU = leituras.get(0);
-        ArrayList<Integer> leiturasDisco = leituras.get(1);
-        ArrayList<Integer> leiturasMemoria = leituras.get(2);
-        System.out.println("----------MÉTRICAS----------\n" +
-                "COMPONENTE     MODERADO     CRÍTICO\n" +
-                "CPU               >70        >99\n" +
-                "DISCO             >50        >99\n" +
-                "MEMÓRIA           >75        >80\n");
-
-        for (int i = 0; i < leiturasCPU.size(); i++) {
-            if (leiturasCPU.get(i) > 99) {
-                qtdAlertasCritico++;
-                System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique sua CPU!" +
-                        "\nValor lido CPU: " + leiturasCPU.get(i) + "\n");
-            } else if (leiturasCPU.get(i) > 70) {
-                qtdAlertasModerado++;
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
             }
 
-            if (leiturasDisco.get(i) > 99) {
-                qtdAlertasCritico++;
-                System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique seu Disco!" +
-                        "\nValor lido Disco: " + leiturasDisco.get(i) + "\n");
-            } else if (leiturasDisco.get(i) > 50) {
-                qtdAlertasModerado++;
+            rede.updateAttributes();
+
+            Double recebimento = (rede.getBytesRecv() - recebidosAntes) * 8.0 / 1_000_000;
+            Double envio = (rede.getBytesSent() - enviadosAntes) * 8.0 / 1_000_000;
+
+            System.out.println("\n --Monitoramento de Rede --");
+            System.out.println("Interface: " + rede.getName());
+            System.out.printf("Taxa de recebimento: %.2f Mbps%n", recebimento);
+            System.out.printf("Taxa de envio: %.2f Mbps%n", envio);
+
+            if (velocidade != null && velocidade > 0) {
+                Double capacidadeMbps = velocidade / 1_000_000.0;
+                Double percentualRecebimento = recebimento / capacidadeMbps * 100;
+                Double percentualEnvio = envio / capacidadeMbps * 100;
+                Double utilizacao = percentualRecebimento + percentualEnvio;
+
+                if (percentualRecebimento > limiteRecebimento) {
+                    System.out.println("ALERTA: recebimento acima do limite!");
+                }
+                if (percentualEnvio > limiteEnvio) {
+                    System.out.println("ALERTA: envio acima do limite!");
+                }
+
+                System.out.printf("Utilização da rede: %.2f%%%n", utilizacao);
+
+                if (utilizacao > limiteCritico) {
+                    System.out.println("ALERTA CRÍTICO: utilização elevada!");
+                } else if (utilizacao > limiteAviso) {
+                    System.out.println("AVISO: utilização elevada!");
+                }
+            } else {
+                System.out.println("Utilização da rede: indisponível");
             }
 
-            if (leiturasMemoria.get(i) > 90) {
-                qtdAlertasCritico++;
-                System.out.println("FOI IDENTIFICADO UM ALERTA CRÍTICO!! Verifique sua Memória!" +
-                        "\nValor lido Memoria: " + leiturasMemoria.get(i) + "\n");
-            } else if (leiturasMemoria.get(i) > 75) {
-                qtdAlertasModerado++;
-            }
+            System.out.println("-----------------------------");
         }
-
-        System.out.println("\nO resumo do seu dia foi: \n"
-                + "Quantidade de alertas Moderado: " + qtdAlertasModerado + "\n"
-                + "Quantidade de alertas Crítico: " + qtdAlertasCritico + "\n");
-
-        System.out.println("Valores lidos no dia:\n" +
-                "CPU: "+leituras.get(0)
-                +"\nDisco: "+leituras.get(1)
-                +"\nMemória: "+leituras.get(2)
-        );
-
-        scan.close();
     }
 }
