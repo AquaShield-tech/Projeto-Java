@@ -53,8 +53,7 @@
                             <transformers>
                                 <transformer
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <!-- CORRIGIDO: Adicionado o pacote school.sptech -->
-                                    <mainClass>school.sptech.Main</mainClass>
+                                    <mainClass>school.sptech.Eta</mainClass>
                                 </transformer>
                             </transformers>
                             <filters>
