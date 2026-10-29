@@ -3,6 +3,7 @@ package school.sptech;
 import oshi.SystemInfo;
 import oshi.hardware.NetworkIF;
 import org.springframework.jdbc.core.JdbcTemplate;
+import java.util.List;
 import java.util.Map;
 import java.math.BigDecimal;
 
@@ -12,34 +13,44 @@ public class Eta {
         DBConnectionProvider dbProvider = new DBConnectionProvider();
         JdbcTemplate connection = dbProvider.getConnection();
 
-        System.out.println("AQUASHIELD - INICIANDO MONITORAMENTO AUTOMÁTICO DE REDE");
+        System.out.println("AQUASHIELD - INICIANDO MONITORAMENTO DE REDE (OSHI)");
 
-        // Captura do MAC Address da máquina
-        String macAddressAtual = "";
-        try {
-            macAddressAtual = sistema.getHardware().getNetworkIFs().get(0).getMacaddr();
-            if (macAddressAtual != null) {
-                macAddressAtual = macAddressAtual.replace(":", "").trim();
-            }
-        } catch (Exception e) {
-            macAddressAtual = "000000000000";
-        }
-
-        // Busca o ID da máquina no banco com o MAC Address
+        // Testa as placas de rede até achar a que o python cadastrou
+        List<NetworkIF> interfaces = sistema.getHardware().getNetworkIFs();
         Integer idMaquina = null;
-        try {
-            idMaquina = connection.queryForObject(
-                    "SELECT id FROM Maquina WHERE mac_address = ? LIMIT 1",
-                    Integer.class, macAddressAtual
-            );
-            System.out.println("Maquina reconhecida no banco de dados (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")\n");
-        } catch (Exception e) {
-            System.out.println("ATENCAO: Esta maquina (MAC: " + macAddressAtual + ") nao esta cadastrada no banco.");
-            System.out.println("Certifique-se de rodar o script Python primeiro para que ele cadastre a maquina automaticamente.");
-            return; // Para a execução se a máquina não existir
+        String macAddressAtual = "";
+        NetworkIF interfaceAlvo = null;
+
+        for (NetworkIF iface : interfaces) {
+            String macTemp = iface.getMacaddr();
+            if (macTemp != null && !macTemp.isBlank()) {
+                macTemp = macTemp.replace(":", "").trim();
+
+                try {
+                    idMaquina = connection.queryForObject(
+                            "SELECT id FROM Maquina WHERE mac_address = ? LIMIT 1",
+                            Integer.class, macTemp
+                    );
+                    if (idMaquina != null) {
+                        macAddressAtual = macTemp;
+                        interfaceAlvo = iface;
+                        break;
+                    }
+                } catch (Exception e) {
+                    // Se não achar vai pra próxima
+                }
+            }
         }
 
-        // Busca a configuração do componente de Rede para esta máquina
+        if (idMaquina == null) {
+            System.out.println("ATENCAO: Nenhuma placa de rede desta maquina bate com o banco de dados.");
+            System.out.println("Certifique-se de que o Python rodou e cadastrou a maquina com sucesso.");
+            return;
+        }
+
+        System.out.println("Maquina reconhecida no banco de dados (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")\n");
+
+        // Busca a configuração do componente
         Integer idComponenteRede = null;
         Integer fkDefinicaoAlerta = null;
         Double limiteBanco = 100.0;
@@ -62,7 +73,7 @@ public class Eta {
                 limiteBanco = ((BigDecimal) limiteObj).doubleValue();
             }
         } catch (Exception e) {
-            System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina no banco de dados.");
+            System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina.");
             return;
         }
 
@@ -70,52 +81,44 @@ public class Eta {
         Integer idMedidaDownload = 1;
         Integer idMedidaUpload = 2;
 
-        System.out.println("AquaShield: Captura de Rede em andamento...\n");
+        System.out.println("AquaShield: Captura de Rede em andamento (Interface: " + interfaceAlvo.getName() + ")...\n");
 
-        // Loop infinito ea automático de leitura e inserção
+        // Monitoramento contínuo
         while (true) {
             try {
-                for (NetworkIF rede : sistema.getHardware().getNetworkIFs()) {
-                    rede.updateAttributes();
-                    Long recebidosAntes = rede.getBytesRecv();
-                    Long enviadosAntes = rede.getBytesSent();
+                // Atualiza os dados em tempo real
+                interfaceAlvo.updateAttributes();
+                Long recebidosAntes = interfaceAlvo.getBytesRecv();
+                Long enviadosAntes = interfaceAlvo.getBytesSent();
 
-                    Thread.sleep(5000);
+                Thread.sleep(5000);
 
-                    rede.updateAttributes();
-                    Long bytesRecebidosAgora = rede.getBytesRecv();
-                    Long bytesEnviadosAgora = rede.getBytesSent();
+                interfaceAlvo.updateAttributes();
+                Long bytesRecebidosAgora = interfaceAlvo.getBytesRecv();
+                Long bytesEnviadosAgora = interfaceAlvo.getBytesSent();
 
-                    Double recebimento = (bytesRecebidosAgora - recebidosAntes) * 8.0 / 1_000_000;
-                    Double envio = (bytesEnviadosAgora - enviadosAntes) * 8.0 / 1_000_000;
+                Double recebimento = (bytesRecebidosAgora - recebidosAntes) * 8.0 / 1_000_000.0;
+                Double envio = (bytesEnviadosAgora - enviadosAntes) * 8.0 / 1_000_000.0;
 
-                    NetworkIF.IfOperStatus operStatus = rede.getIfOperStatus();
-                    Boolean ativa = (operStatus == NetworkIF.IfOperStatus.UP);
-                    String estadoStr = Boolean.TRUE.equals(ativa) ? "Ativa" : "Inativa";
+                if (recebimento < 0) recebimento = 0.0;
+                if (envio < 0) envio = 0.0;
 
-                    String sqlLeitura = "INSERT INTO Leitura (valor, data_hora, fk_medida, configuracao_fk_maquina, configuracao_fk_componente) VALUES (?, NOW(), ?, ?, ?)";
+                String sqlLeitura = "INSERT INTO Leitura (valor, data_hora, fk_medida, configuracao_fk_maquina, configuracao_fk_componente) VALUES (?, NOW(), ?, ?, ?)";
+                connection.update(sqlLeitura, recebimento, idMedidaDownload, idMaquina, idComponenteRede);
+                Long idLeituraDownload = connection.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
-                    connection.update(sqlLeitura, recebimento, idMedidaDownload, idMaquina, idComponenteRede);
-                    Long idLeituraDownload = connection.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                connection.update(sqlLeitura, envio, idMedidaUpload, idMaquina, idComponenteRede);
 
-                    connection.update(sqlLeitura, envio, idMedidaUpload, idMaquina, idComponenteRede);
-
-                    if (recebimento > limiteFinal) {
-                        String msgAlerta = "ALERTA: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite (" + limiteFinal + " Mbps)!";
-                        System.out.println(msgAlerta);
-
-                        String sqlAlerta = "INSERT INTO Leitura_Alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)";
-                        connection.update(sqlAlerta, idLeituraDownload, fkDefinicaoAlerta);
-                    }
-
-                    System.out.println("Interface: " + rede.getName() + " | Estado: " + estadoStr);
-                    System.out.printf("Download: %.2f Mbps | Upload: %.2f Mbps%n", recebimento, envio);
-                    System.out.println("------------------------------------------------------------");
+                if (recebimento > limiteFinal) {
+                    System.out.println("ALERTA: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
+                    connection.update("INSERT INTO Leitura_Alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)", idLeituraDownload, fkDefinicaoAlerta);
                 }
+
+                System.out.printf("Download: %.2f Mbps | Upload: %.2f Mbps%n", recebimento, envio);
+                System.out.println("------------------------------------------------------------");
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                System.out.println("Monitoramento interrompido.");
                 break;
             } catch (Exception e) {
                 System.out.println("Erro no ciclo: " + e.getMessage());
