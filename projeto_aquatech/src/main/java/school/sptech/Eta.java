@@ -15,16 +15,19 @@ public class Eta {
 
         System.out.println("AQUASHIELD - INICIANDO MONITORAMENTO DE REDE (OSHI)");
 
-        // Testa as placas de rede até achar a que o python cadastrou
         List<NetworkIF> interfaces = sistema.getHardware().getNetworkIFs();
         Integer idMaquina = null;
         String macAddressAtual = "";
         NetworkIF interfaceAlvo = null;
 
+        System.out.println("A procurar MAC Address correspondente na base de dados...");
+
         for (NetworkIF iface : interfaces) {
             String macTemp = iface.getMacaddr();
             if (macTemp != null && !macTemp.isBlank()) {
-                macTemp = macTemp.replace(":", "").trim();
+                
+                macTemp = macTemp.replace(":", "").replace("-", "").trim().toLowerCase();
+                System.out.println(" -> A analisar interface: " + iface.getName() + " | MAC: " + macTemp);
 
                 try {
                     idMaquina = connection.queryForObject(
@@ -34,23 +37,23 @@ public class Eta {
                     if (idMaquina != null) {
                         macAddressAtual = macTemp;
                         interfaceAlvo = iface;
+                        System.out.println("    [SUCESSO] Placa encontrada na base de dados!");
                         break;
                     }
                 } catch (Exception e) {
-                    // Se não achar vai pra próxima
+                    System.out.println("    [FALHA] Este MAC não está registado.");
                 }
             }
         }
 
         if (idMaquina == null) {
-            System.out.println("ATENCAO: Nenhuma placa de rede desta maquina bate com o banco de dados.");
-            System.out.println("Certifique-se de que o Python rodou e cadastrou a maquina com sucesso.");
+            System.out.println("\nATENCAO: Nenhuma placa de rede desta maquina coincide com a base de dados.");
+            System.out.println("Certifique-se de que o Python executou e registou a maquina com sucesso.");
             return;
         }
 
-        System.out.println("Maquina reconhecida no banco de dados (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")\n");
+        System.out.println("\nMaquina reconhecida na base de dados (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")\n");
 
-        // Busca a configuração do componente
         Integer idComponenteRede = null;
         Integer fkDefinicaoAlerta = null;
         Double limiteBanco = 100.0;
@@ -73,7 +76,7 @@ public class Eta {
                 limiteBanco = ((BigDecimal) limiteObj).doubleValue();
             }
         } catch (Exception e) {
-            System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina.");
+            System.out.println("Erro: Componente de 'Rede' não configurado para esta maquina.");
             return;
         }
 
@@ -83,10 +86,8 @@ public class Eta {
 
         System.out.println("AquaShield: Captura de Rede em andamento (Interface: " + interfaceAlvo.getName() + ")...\n");
 
-        // Monitoramento contínuo
         while (true) {
             try {
-                // Atualiza os dados em tempo real
                 interfaceAlvo.updateAttributes();
                 Long recebidosAntes = interfaceAlvo.getBytesRecv();
                 Long enviadosAntes = interfaceAlvo.getBytesSent();
