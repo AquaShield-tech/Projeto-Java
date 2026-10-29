@@ -1,7 +1,7 @@
 package school.sptech;
 
 public class Main {
-    static void main() {
+    public static void main(String[] args) {
         Eta rede = new Eta();
         rede.monitorarRede();
     }

@@ -7,6 +7,11 @@
         <option value="$PROJECT_DIR$/projeto_aquatech/pom.xml" />
       </list>
     </option>
+    <option name="ignoredFiles">
+      <set>
+        <option value="$PROJECT_DIR$/projeto_aquatech/projeto_aquatech/pom.xml" />
+      </set>
+    </option>
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="corretto-25" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />

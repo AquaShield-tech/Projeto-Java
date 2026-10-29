@@ -9,5 +9,8 @@
         <module name="projeto_aquatech" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="projeto_aquatech (1)" target="25" />
+    </bytecodeTargetLevel>
   </component>
 </project>

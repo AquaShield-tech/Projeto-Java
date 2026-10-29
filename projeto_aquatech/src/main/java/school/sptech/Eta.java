@@ -3,46 +3,21 @@ package school.sptech;
 import oshi.SystemInfo;
 import oshi.hardware.NetworkIF;
 import org.springframework.jdbc.core.JdbcTemplate;
-import java.util.Scanner;
 import java.util.Map;
 import java.math.BigDecimal;
 
 public class Eta {
     public void monitorarRede() {
-        Scanner scanner = new Scanner(System.in);
         SystemInfo sistema = new SystemInfo();
         DBConnectionProvider dbProvider = new DBConnectionProvider();
         JdbcTemplate connection = dbProvider.getConnection();
 
-        System.out.println("AQUASHIELD - LOGIN");
+        System.out.println("AQUASHIELD - INICIANDO MONITORAMENTO AUTOMÁTICO DE REDE");
 
-        Integer idUsuarioLogado = null;
-        Integer idEmpresaUsuario = null;
-
-        while (idUsuarioLogado == null) {
-            System.out.print("E-mail: ");
-            String emailInput = scanner.nextLine();
-
-            System.out.print("Senha: ");
-            String senhaInput = scanner.nextLine();
-
-            try {
-                Map<String, Object> usuarioBD = connection.queryForMap("SELECT id, fk_empresa FROM Usuario WHERE email = ? AND senha = ?",
-                        emailInput, senhaInput
-                );
-
-                idUsuarioLogado = (Integer) usuarioBD.get("id");
-                idEmpresaUsuario = (Integer) usuarioBD.get("fk_empresa");
-                System.out.println("\nLogin realizado com sucesso! Bem-vindo.");
-            } catch (Exception e) {
-                System.out.println("\nE-mail ou senha incorretos. Tente novamente.\n");
-            }
-        }
-
+        // Captura do MAC Address da máquina
         String macAddressAtual = "";
         try {
             macAddressAtual = sistema.getHardware().getNetworkIFs().get(0).getMacaddr();
-
             if (macAddressAtual != null) {
                 macAddressAtual = macAddressAtual.replace(":", "").trim();
             }
@@ -50,30 +25,35 @@ public class Eta {
             macAddressAtual = "000000000000";
         }
 
+        // Busca o ID da máquina no banco com o MAC Address
         Integer idMaquina = null;
         try {
-            idMaquina = connection.queryForObject("SELECT m.id FROM Maquina m " + "JOIN ETA e ON m.fk_eta = e.id " + "JOIN CCO c ON e.fk_cco = c.id " + "WHERE m.mac_address = ? AND c.fk_empresa = ?",
-                    Integer.class, macAddressAtual, idEmpresaUsuario
+            idMaquina = connection.queryForObject(
+                    "SELECT id FROM Maquina WHERE mac_address = ? LIMIT 1",
+                    Integer.class, macAddressAtual
             );
-            System.out.println("Maquina reconhecida no sistema (ID: " + idMaquina + ")\n");
+            System.out.println("Maquina reconhecida no banco de dados (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")\n");
         } catch (Exception e) {
-            System.out.println("ATENCAO: Esta maquina (MAC: " + macAddressAtual + ") nao esta cadastrada no site para a sua empresa.");
-            System.out.println("Cadastre a maquina antes de iniciar o monitoramento.");
-            return;
+            System.out.println("ATENCAO: Esta maquina (MAC: " + macAddressAtual + ") nao esta cadastrada no banco.");
+            System.out.println("Certifique-se de rodar o script Python primeiro para que ele cadastre a maquina automaticamente.");
+            return; // Para a execução se a máquina não existir
         }
 
+        // Busca a configuração do componente de Rede para esta máquina
         Integer idComponenteRede = null;
         Integer fkDefinicaoAlerta = null;
         Double limiteBanco = 100.0;
 
         try {
-            Map<String, Object> compBD = connection.queryForMap("SELECT c.id as idComp, c.fk_definicaoAlerta as idAlerta, da.valor_limite as limite " +
+            Map<String, Object> compBD = connection.queryForMap(
+                    "SELECT c.id as idComp, c.fk_definicaoAlerta as idAlerta, da.valor_limite as limite " +
                             "FROM Configuracao cfg " +
                             "JOIN Componentes c ON cfg.fk_componente = c.id " +
                             "JOIN Definicao_Alerta da ON c.fk_definicaoAlerta = da.id " +
                             "JOIN Tipo_Componente tc ON c.fk_tipoComponente = tc.id " +
                             "WHERE cfg.fk_maquina = ? AND tc.tipo LIKE '%Rede%' LIMIT 1", idMaquina
             );
+
             idComponenteRede = (Integer) compBD.get("idComp");
             fkDefinicaoAlerta = (Integer) compBD.get("idAlerta");
 
@@ -82,8 +62,7 @@ public class Eta {
                 limiteBanco = ((BigDecimal) limiteObj).doubleValue();
             }
         } catch (Exception e) {
-            System.out.println("Erro detalhado ao buscar componente: " + e.getMessage());
-            e.printStackTrace();
+            System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina no banco de dados.");
             return;
         }
 
@@ -91,8 +70,9 @@ public class Eta {
         Integer idMedidaDownload = 1;
         Integer idMedidaUpload = 2;
 
-        System.out.println("AquaShield: Monitoramento de Rede iniciado");
+        System.out.println("AquaShield: Captura de Rede em andamento...\n");
 
+        // Loop infinito ea automático de leitura e inserção
         while (true) {
             try {
                 for (NetworkIF rede : sistema.getHardware().getNetworkIFs()) {
@@ -129,7 +109,7 @@ public class Eta {
                     }
 
                     System.out.println("Interface: " + rede.getName() + " | Estado: " + estadoStr);
-                    System.out.printf("Download: %.2f Mbps (Limite: %.2f) | Upload: %.2f Mbps%n", recebimento, limiteFinal, envio);
+                    System.out.printf("Download: %.2f Mbps | Upload: %.2f Mbps%n", recebimento, envio);
                     System.out.println("------------------------------------------------------------");
                 }
 
