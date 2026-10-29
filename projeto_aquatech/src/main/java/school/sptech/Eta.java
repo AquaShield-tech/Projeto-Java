@@ -42,6 +42,7 @@ public class Eta {
                     }
                 } catch (Exception e) {
                     System.out.println("    [FALHA] Este MAC não está registado.");
+                    e.printStackTrace();
                 }
             }
         }
