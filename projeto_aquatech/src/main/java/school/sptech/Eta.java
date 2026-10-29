@@ -20,14 +20,10 @@ public class Eta {
         String macAddressAtual = "";
         NetworkIF interfaceAlvo = null;
 
-        System.out.println("A procurar MAC Address correspondente na base de dados...");
-
         for (NetworkIF iface : interfaces) {
             String macTemp = iface.getMacaddr();
             if (macTemp != null && !macTemp.isBlank()) {
                 macTemp = macTemp.replace(":", "").replace("-", "").trim().toLowerCase();
-                System.out.println(" -> A analisar interface: " + iface.getName() + " | MAC: " + macTemp);
-
                 try {
                     idMaquina = connection.queryForObject(
                             "SELECT id FROM maquina WHERE mac_address = ? LIMIT 1",
@@ -36,22 +32,18 @@ public class Eta {
                     if (idMaquina != null) {
                         macAddressAtual = macTemp;
                         interfaceAlvo = iface;
-                        System.out.println("    [SUCESSO] Placa encontrada na base de dados!");
                         break;
                     }
-                } catch (Exception e) {
-                    System.out.println("    [FALHA] Este MAC não está registado.");
-                }
+                } catch (Exception ignored) { }
             }
         }
 
         if (idMaquina == null) {
-            System.out.println("\nATENCAO: Nenhuma placa de rede desta maquina coincide com a base de dados.");
-            System.out.println("Certifique-se de que o Python executou e registou a maquina com sucesso.");
+            System.out.println("ATENCAO: Maquina nao encontrada no banco. Execute o Python primeiro.");
             return;
         }
 
-        System.out.println("\nMaquina reconhecida na base de dados (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")\n");
+        System.out.println("Maquina reconhecida (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")");
 
         Integer idComponenteRede = null;
         Integer fkDefinicaoAlerta = null;
@@ -76,15 +68,10 @@ public class Eta {
             }
         } catch (Exception e) {
             System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina.");
-            e.printStackTrace();
             return;
         }
 
-        Double limiteFinal = (limiteBanco != null) ? limiteBanco : 100.0;
-        Integer idMedidaDownload = 1;
-        Integer idMedidaUpload = 2;
-
-        System.out.println("AquaShield: Captura de Rede em andamento (Interface: " + interfaceAlvo.getName() + ")...\n");
+        System.out.println("Captura de Rede em andamento (Interface: " + interfaceAlvo.getName() + ")...\n");
 
         while (true) {
             try {
@@ -98,21 +85,19 @@ public class Eta {
                 Long bytesRecebidosAgora = interfaceAlvo.getBytesRecv();
                 Long bytesEnviadosAgora = interfaceAlvo.getBytesSent();
 
-                Double recebimento = (bytesRecebidosAgora - recebidosAntes) * 8.0 / 1_000_000.0;
-                Double envio = (bytesEnviadosAgora - enviadosAntes) * 8.0 / 1_000_000.0;
-
-                if (recebimento < 0) recebimento = 0.0;
-                if (envio < 0) envio = 0.0;
+                Double recebimento = Math.max(0, (bytesRecebidosAgora - recebidosAntes) * 8.0 / 1_000_000.0);
+                Double envio = Math.max(0, (bytesEnviadosAgora - enviadosAntes) * 8.0 / 1_000_000.0);
 
                 String sqlLeitura = "INSERT INTO leitura (valor, data_hora, fk_medida, configuracao_fk_maquina, configuracao_fk_componente) VALUES (?, NOW(), ?, ?, ?)";
-                connection.update(sqlLeitura, recebimento, idMedidaDownload, idMaquina, idComponenteRede);
-                Long idLeituraDownload = connection.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
-                connection.update(sqlLeitura, envio, idMedidaUpload, idMaquina, idComponenteRede);
+                connection.update(sqlLeitura, recebimento, 1, idMaquina, idComponenteRede); // 1 = idMedidaDownload
+                Long idLeitDown = connection.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
-                if (recebimento > limiteFinal) {
+                connection.update(sqlLeitura, envio, 2, idMaquina, idComponenteRede);       // 2 = idMedidaUpload
+
+                if (recebimento > limiteBanco) {
                     System.out.println("ALERTA: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
-                    connection.update("INSERT INTO leitura_alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)", idLeituraDownload, fkDefinicaoAlerta);
+                    connection.update("INSERT INTO leitura_alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)", idLeitDown, fkDefinicaoAlerta);
                 }
 
                 System.out.printf("Download: %.2f Mbps | Upload: %.2f Mbps%n", recebimento, envio);
