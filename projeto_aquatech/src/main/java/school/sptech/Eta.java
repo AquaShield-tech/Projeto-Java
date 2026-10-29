@@ -25,7 +25,7 @@ public class Eta {
         for (NetworkIF iface : interfaces) {
             String macTemp = iface.getMacaddr();
             if (macTemp != null && !macTemp.isBlank()) {
-                
+
                 macTemp = macTemp.replace(":", "").replace("-", "").trim().toLowerCase();
                 System.out.println(" -> A analisar interface: " + iface.getName() + " | MAC: " + macTemp);
 
