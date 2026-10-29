@@ -25,13 +25,12 @@ public class Eta {
         for (NetworkIF iface : interfaces) {
             String macTemp = iface.getMacaddr();
             if (macTemp != null && !macTemp.isBlank()) {
-
                 macTemp = macTemp.replace(":", "").replace("-", "").trim().toLowerCase();
                 System.out.println(" -> A analisar interface: " + iface.getName() + " | MAC: " + macTemp);
 
                 try {
                     idMaquina = connection.queryForObject(
-                            "SELECT id FROM Maquina WHERE mac_address = ? LIMIT 1",
+                            "SELECT id FROM maquina WHERE mac_address = ? LIMIT 1",
                             Integer.class, macTemp
                     );
                     if (idMaquina != null) {
@@ -42,7 +41,6 @@ public class Eta {
                     }
                 } catch (Exception e) {
                     System.out.println("    [FALHA] Este MAC não está registado.");
-                    e.printStackTrace();
                 }
             }
         }
@@ -62,10 +60,10 @@ public class Eta {
         try {
             Map<String, Object> compBD = connection.queryForMap(
                     "SELECT c.id as idComp, c.fk_definicaoAlerta as idAlerta, da.valor_limite as limite " +
-                            "FROM Configuracao cfg " +
-                            "JOIN Componentes c ON cfg.fk_componente = c.id " +
-                            "JOIN Definicao_Alerta da ON c.fk_definicaoAlerta = da.id " +
-                            "JOIN Tipo_Componente tc ON c.fk_tipoComponente = tc.id " +
+                            "FROM configuracao cfg " +
+                            "JOIN componentes c ON cfg.fk_componente = c.id " +
+                            "JOIN definicao_alerta da ON c.fk_definicaoAlerta = da.id " +
+                            "JOIN tipo_componente tc ON c.fk_tipoComponente = tc.id " +
                             "WHERE cfg.fk_maquina = ? AND tc.tipo LIKE '%Rede%' LIMIT 1", idMaquina
             );
 
@@ -77,7 +75,8 @@ public class Eta {
                 limiteBanco = ((BigDecimal) limiteObj).doubleValue();
             }
         } catch (Exception e) {
-            System.out.println("Erro: Componente de 'Rede' não configurado para esta maquina.");
+            System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina.");
+            e.printStackTrace();
             return;
         }
 
@@ -105,7 +104,7 @@ public class Eta {
                 if (recebimento < 0) recebimento = 0.0;
                 if (envio < 0) envio = 0.0;
 
-                String sqlLeitura = "INSERT INTO Leitura (valor, data_hora, fk_medida, configuracao_fk_maquina, configuracao_fk_componente) VALUES (?, NOW(), ?, ?, ?)";
+                String sqlLeitura = "INSERT INTO leitura (valor, data_hora, fk_medida, configuracao_fk_maquina, configuracao_fk_componente) VALUES (?, NOW(), ?, ?, ?)";
                 connection.update(sqlLeitura, recebimento, idMedidaDownload, idMaquina, idComponenteRede);
                 Long idLeituraDownload = connection.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
@@ -113,7 +112,7 @@ public class Eta {
 
                 if (recebimento > limiteFinal) {
                     System.out.println("ALERTA: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
-                    connection.update("INSERT INTO Leitura_Alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)", idLeituraDownload, fkDefinicaoAlerta);
+                    connection.update("INSERT INTO leitura_alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)", idLeituraDownload, fkDefinicaoAlerta);
                 }
 
                 System.out.printf("Download: %.2f Mbps | Upload: %.2f Mbps%n", recebimento, envio);
