@@ -6,7 +6,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 
-import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.List;
@@ -37,18 +36,19 @@ public class Eta {
         for (NetworkIF iface : interfaces) {
             String macTemp = iface.getMacaddr();
             if (macTemp != null && !macTemp.isBlank()) {
-                macTemp = macTemp.replace(":", "").replace("-", "").trim().toLowerCase();
-                try {
-                    idMaquina = connection.queryForObject(
-                            "SELECT id FROM maquina WHERE mac_address = ? LIMIT 1",
-                            Integer.class, macTemp
-                    );
-                    if (idMaquina != null) {
-                        macAddressAtual = macTemp;
-                        interfaceAlvo = iface;
-                        break;
-                    }
-                } catch (Exception ignored) {
+                System.out.println("Verificando interface: " + iface.getName() + " | MAC: " + macTemp);
+                String macBusca = macTemp.replace(":", "").replace("-", "").trim().toUpperCase();
+
+                List<Integer> maquinas = connection.queryForList(
+                        "SELECT id FROM maquina WHERE REPLACE(UPPER(mac_address), ':', '') = ? AND ativo = 1 LIMIT 1",
+                        Integer.class, macBusca
+                );
+
+                if (!maquinas.isEmpty()) {
+                    idMaquina = maquinas.get(0);
+                    macAddressAtual = macTemp.trim().toUpperCase();
+                    interfaceAlvo = iface;
+                    break;
                 }
             }
         }
@@ -61,34 +61,34 @@ public class Eta {
         System.out.println("Maquina reconhecida (ID: " + idMaquina + ", MAC: " + macAddressAtual + ")");
 
         Integer idComponenteRede;
-        Integer fkDefinicaoAlerta;
-        double limiteBanco = 100.0;
 
         try {
-            // CORRIGIDO: a tabela se chama "componente" (singular), como no Script.sql
-            Map<String, Object> compBD = connection.queryForMap(
-                    "SELECT c.id AS idComp, c.fk_definicaoAlerta AS idAlerta, da.valor_limite AS limite " +
-                            "FROM configuracao cfg " +
-                            "JOIN componente c ON cfg.fk_componente = c.id " +
-                            "JOIN definicao_alerta da ON c.fk_definicaoAlerta = da.id " +
+            // Ajuste 2: garante o vínculo do componente Rede na tabela configuracao (já que saiu do Python)
+            Integer idCompBusca = connection.queryForObject(
+                    "SELECT c.id FROM componente c " +
                             "JOIN tipo_componente tc ON c.fk_tipoComponente = tc.id " +
-                            "WHERE cfg.fk_maquina = ? AND tc.tipo LIKE '%Rede%' LIMIT 1",
-                    idMaquina
+                            "WHERE tc.tipo LIKE '%Rede%' LIMIT 1",
+                    Integer.class
             );
 
-            idComponenteRede = ((Number) compBD.get("idComp")).intValue();
-            fkDefinicaoAlerta = ((Number) compBD.get("idAlerta")).intValue();
+            Integer jaConfigurado = connection.queryForObject(
+                    "SELECT COUNT(*) FROM configuracao WHERE fk_maquina = ? AND fk_componente = ?",
+                    Integer.class, idMaquina, idCompBusca
+            );
 
-            Object limiteObj = compBD.get("limite");
-            if (limiteObj != null) {
-                limiteBanco = ((BigDecimal) limiteObj).doubleValue();
+            if (jaConfigurado != null && jaConfigurado == 0) {
+                connection.update(
+                        "INSERT INTO configuracao (fk_maquina, fk_componente, fk_statusMaquina) VALUES (?, ?, 1)",
+                        idMaquina, idCompBusca
+                );
             }
+
+            idComponenteRede = idCompBusca;
         } catch (Exception e) {
             System.out.println("Erro: Componente de 'Rede' nao configurado para esta maquina.");
             return;
         }
 
-        // CORRIGIDO: ids de medida buscados (ou criados) no banco, sem números fixos
         Integer idMedidaDownload = obterIdMedida(connection, UNIDADE_DOWNLOAD);
         Integer idMedidaUpload = obterIdMedida(connection, UNIDADE_UPLOAD);
 
@@ -106,21 +106,41 @@ public class Eta {
                 long recebidosAgora = interfaceAlvo.getBytesRecv();
                 long enviadosAgora = interfaceAlvo.getBytesSent();
 
-                // bytes -> megabits; a média por segundo é calculada abaixo
                 double segundos = INTERVALO_MS / 1000.0;
                 double recebimento = Math.max(0, (recebidosAgora - recebidosAntes) * 8.0 / 1_000_000.0 / segundos);
                 double envio = Math.max(0, (enviadosAgora - enviadosAntes) * 8.0 / 1_000_000.0 / segundos);
 
-                // CORRIGIDO: o id da leitura vem da própria inserção (GeneratedKeyHolder),
-                // e não de um LAST_INSERT_ID() em outra consulta, que pode usar outra conexão do pool.
                 long idLeituraDownload = inserirLeitura(connection, recebimento, idMedidaDownload, idMaquina, idComponenteRede);
                 inserirLeitura(connection, envio, idMedidaUpload, idMaquina, idComponenteRede);
 
-                if (recebimento > limiteBanco) {
-                    System.out.println("ALERTA: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
+                // Ajuste 3: lê os gatilhos atuais (Atenção e Crítico) salvos pelo site no banco
+                Map<String, Object> compBD = connection.queryForMap(
+                        "SELECT c.fk_definicaoAlerta AS idAtencao, da.valor_limite AS limiteAtencao, " +
+                                "COALESCE(c.fk_definicaoAlertaCritico, 5) AS idCritico, " +
+                                "COALESCE(da_crit.valor_limite, 80.0) AS limiteCritico " +
+                                "FROM componente c " +
+                                "JOIN definicao_alerta da ON c.fk_definicaoAlerta = da.id " +
+                                "LEFT JOIN definicao_alerta da_crit ON c.fk_definicaoAlertaCritico = da_crit.id " +
+                                "WHERE c.id = ? LIMIT 1",
+                        idComponenteRede
+                );
+
+                int idAtencao = ((Number) compBD.get("idAtencao")).intValue();
+                double limiteAtencao = ((Number) compBD.get("limiteAtencao")).doubleValue();
+                int idCritico = ((Number) compBD.get("idCritico")).intValue();
+                double limiteCritico = ((Number) compBD.get("limiteCritico")).doubleValue();
+
+                if (recebimento > limiteCritico) {
+                    System.out.println("ALERTA CRITICO: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
                     connection.update(
                             "INSERT INTO leitura_alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)",
-                            idLeituraDownload, fkDefinicaoAlerta
+                            idLeituraDownload, idCritico
+                    );
+                } else if (recebimento >= limiteAtencao) {
+                    System.out.println("ATENCAO: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
+                    connection.update(
+                            "INSERT INTO leitura_alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)",
+                            idLeituraDownload, idAtencao
                     );
                 }
 

@@ -10,9 +10,9 @@ public class DBConnectionProvider {
 
     public DBConnectionProvider() {
         BasicDataSource basicDataSource = new BasicDataSource();
-        basicDataSource.setUrl("jdbc:mysql://localhost:3306/aquashield?useSSL=false&serverTimezone=UTC");
+        basicDataSource.setUrl("jdbc:mysql://localhost:3306/aquashield?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC");
         basicDataSource.setUsername("root");
-        basicDataSource.setPassword("urubu100");
+        basicDataSource.setPassword("@K8m1m4v3a12");
 
         this.dataSource = basicDataSource;
     }
