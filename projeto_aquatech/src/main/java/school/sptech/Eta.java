@@ -94,6 +94,12 @@ public class Eta {
 
         System.out.println("Captura de Rede em andamento (Interface: " + interfaceAlvo.getName() + ")...\n");
 
+        String hostname = sistema.getOperatingSystem().getNetworkParams().getHostName();
+        String so = sistema.getOperatingSystem().getFamily();
+        String versaoSO = sistema.getOperatingSystem().getVersionInfo().getVersion();
+        String[] ipv4s = interfaceAlvo.getIPv4addr();
+        String ipMaquina = (ipv4s != null && ipv4s.length > 0) ? ipv4s[0] : "N/A";
+
         while (true) {
             try {
                 interfaceAlvo.updateAttributes();
@@ -132,10 +138,24 @@ public class Eta {
 
                 if (recebimento > limiteCritico) {
                     System.out.println("ALERTA CRITICO: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
+                    Slack.enviarAlerta(
+                            connection,
+                            hostname,
+                            ipMaquina,
+                            so,
+                            versaoSO,
+                            "Rede",
+                            "Crítico",
+                            recebimento,
+                            limiteCritico,
+                            " Mbps"
+                    );
                     connection.update(
                             "INSERT INTO leitura_alerta (fk_leitura, fk_definicaoAlerta) VALUES (?, ?)",
                             idLeituraDownload, idCritico
                     );
+
+
                 } else if (recebimento >= limiteAtencao) {
                     System.out.println("ATENCAO: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
                     connection.update(
