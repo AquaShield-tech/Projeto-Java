@@ -140,6 +140,7 @@ public class Eta {
                     System.out.println("ALERTA CRITICO: Download (" + String.format("%.2f", recebimento) + " Mbps) acima do limite!");
                     Slack.enviarAlerta(
                             connection,
+                            idMaquina,
                             hostname,
                             ipMaquina,
                             so,

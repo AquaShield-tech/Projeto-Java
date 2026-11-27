@@ -1,4 +1,3 @@
-
 package school.sptech;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,7 +19,7 @@ import java.util.Locale;
 
 public class Slack {
 
-    private static final String WEBHOOK_URL = "WEBHOOK_AQUI";
+    private static final String WEBHOOK_URL = System.getenv("SLACK_WEBHOOK_URL");
 
     // Cliente responsável pelo envio das mensagens
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
@@ -102,6 +101,7 @@ public class Slack {
     // Envia o alerta para o Slack
     public static synchronized void enviarAlerta(
             JdbcTemplate connection,
+            Integer idMaquina,
             String hostname,
             String ipMaquina,
             String so,
@@ -195,16 +195,16 @@ public class Slack {
 
                 System.out.println("Alerta enviado ao Slack!");
 
-                Integer idMaquina = buscarIdMaquina(connection, hostname);
+                Integer idMaquinaFinal = (idMaquina != null) ? idMaquina : buscarIdMaquina(connection, hostname);
                 Integer idComponente = buscarIdComponente(connection, componente);
 
-                if (idMaquina != null && idComponente != null) {
+                if (idMaquinaFinal != null && idComponente != null) {
                     connection.update(
                             "INSERT INTO slack " +
                                     "(fk_maquina, fk_componente, nivelAlerta, " +
                                     "valorIdentificado, limiteConfigurado) " +
                                     "VALUES (?, ?, ?, ?, ?)",
-                            idMaquina,
+                            idMaquinaFinal,
                             idComponente,
                             nivelAlerta,
                             valorIdentificado,
